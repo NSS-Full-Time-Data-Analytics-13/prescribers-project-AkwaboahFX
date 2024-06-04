@@ -3,11 +3,14 @@ SELECT * FROM prescriber;
 
 SELECT 
 	npi, 
-	MAX(total_claim_count) AS total_claims
+	SUM(total_claim_count) AS total_claims
 FROM 
 	prescription
 GROUP BY 
 	npi 
+ORDER BY 
+	total_claims DESC
+LIMIT 1;
 
 	
 SELECT 
@@ -46,55 +49,63 @@ ORDER BY
 
 
 SELECT
-	p.npi,
-	p.drug_name,
 	MAX(total_claim_count) AS total_claims,
-	pr.specialty_description	
+	specialty_description	
 FROM 
-	prescription p
-JOIN
-	prescriber pr
-	ON pr.npi = p.npi
+	prescriber 
+INNER JOIN
+	prescription USING (npi)
+INNER JOIN
+	drug USING (drug_name) 
 WHERE 
-	drug_name ILIKE '%CODONE%'		
+	opioid_drug_flag = 'Y'		
 GROUP BY 
-	p.npi,
-	p.drug_name,
-	pr.specialty_description
-
+	specialty_description
 ORDER BY 
    total_claims DESC;
 
 
 SELECT
-    p.npi,
-    pr.specialty_description
+    specialty_description
 FROM 
-    prescriber pr
-JOIN
-    prescription p
-ON
-    pr.npi = p.npi
-WHERE 
-    pr.specialty_description 
-NOT ILIKE '%associated_description%' 
-OR  
-	pr.specialty_description IS NULL
+    prescriber
+LEFT JOIN
+    prescription USING (npi)
 GROUP BY
-	p.npi,
-	pr.specialty_description
+	specialty_description
+HAVING SUM
+    (total_claim_count) IS NULL;
+
+
+SELECT
+	specialty_description,
+	ROUND(SUM(CASE WHEN opioid_drug_flag = 'Y' 
+	THEN total_claim_count END)/SUM(total_claim_count)*100, 2) 
+	AS percent_opioids
+FROM 
+	prescriber
+INNER JOIN
+	prescription USING (npi)
+INNER JOIN 
+	drug USING (drug_name)
+GROUP BY 
+	specialty_description	
 ORDER BY
-    specialty_description DESC; 
+	percent_opioids DESC NULLS LAST;
+
+	
+SELECT 
+    generic_name,
+	SUM(total_drug_cost)::money AS total_cost 
+FROM 
+	prescription
+INNER JOIN
+	drug USING (drug_name)
+GROUP BY 
+    generic_name
+ORDER BY
+    total_cost DESC;
 
 
 SELECT 
-    drug_name,
-	ROUND(SUM(total_drug_cost)/ SUM(total_day_supply), 2) AS cost_per_day
-FROM 
-	prescription 
-GROUP BY 
-    drug_name,
-	total_drug_cost
-ORDER BY
-    total_drug_cost DESC;
-
+    
